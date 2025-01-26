@@ -10,6 +10,8 @@
 	SET NOCOUNT ON;
 
 
+
+
 ----------------------------------------------------------------
 IF OBJECT_ID (N'dbo._MDD_CCSOR_RoleEpisodes') IS NOT NULL
 DROP TABLE dbo._MDD_CCSOR_RoleEpisodes
@@ -57,10 +59,14 @@ select distinct
 	,priFTEInj.[Primary CCP Role FTE (Injected)]
 	,secroleInj.[Secondary CCP Role (Injected)]
 	,secFTEInj.[Secondary CCP Role FTE (Injected)]
-
+	,e.emp_status
+	,e2.first_name + ' ' + e2.last_name  [Supervisor]
+	
 
 from EmpVisit ev
 left join employees e on e.emp_id= ev.for_emp_id
+left join EmployeeSupervisor es on es.emp_id= ev.emp_id and es.is_indirect = 0
+left join employees e2 on e2.emp_id= es.supervisor_emp_id  
 left join (select ev.empvisit_id, ISNULL (svaa.answer, a.answer)[CCP Effective Date]
 			from EmpVisit ev
 				inner join FormVersion fv on ev.form_ver_id = fv.form_ver_id
@@ -263,6 +269,8 @@ Select
 			else null
 		end as [Additional NonCCP hours]
 ,e.emp_status
+,fr.Supervisor
+
 
 into _MDD_CCSOR_FteForEmps	
 
@@ -293,8 +301,8 @@ DROP TABLE dbo._MDD_CCSOR_FteEpisodes
       ,[Secondary CCP Role]
       ,[Secondary Role FTE]
       ,[Additional NonCCP hours]
+	  ,emp_status
 	  ,[rownum1]
-,emp_status
 	 , ROW_NUMBER () over (partition by empid  order by [CCP Effective Date]  ) rownum 
 	 ,lead([CCP Effective Date])
 				over (partition by empid
@@ -325,8 +333,8 @@ select distinct
 	,ee.[Secondary CCP Role]
 	,ee.[Secondary Role FTE]
 	,ee.[Additional NonCCP hours]
+	,ee.emp_status
 	,null rownum1
-,emp_status
 	,null rownum
 	,ee.[CCP Effective Date] NextDate
 
@@ -351,7 +359,8 @@ from
 		,isnull(case when re.[Start Date] < [CCP Effective Date] then [CCP Effective Date] else re.[Start Date] end, [CCP Effective Date]) as PrimEmpAndRuleStartDate
 		,case when re.[End Date] < NextDate then re.[End Date] 
 			when NextDate is null then re.[End Date] else NextDate end as PrimEmpAndRuleEndDate
-
+		,([Primary Role FTE] * [% EXP CCP HRS]) [FTE1Exp%]
+		,( ([Primary Role FTE]* [% EXP CCP HRS]) + ([Secondary Role FTE] * [% EXP CCP HRS]) ) [FTE1+2Exp%]
 	
 	from
 		EmpEpisodes ee
@@ -373,8 +382,10 @@ from
 		,ee.EmpID
 		,ee.[Employee Name]
 ,ee.emp_status
-		,case when ee.[Secondary Role FTE] is not null then (ee.[Primary Role FTE]* ee.[% EXP CCP HRS]) + (ee.[Secondary Role FTE] * re2.[% EXP CCP HRS])
-			else (ee.[Primary Role FTE]* ee.[% EXP CCP HRS]) end [Combined Expected %]
+		--,case when ee.[Secondary Role FTE] is not null then (ee.[Primary Role FTE]* ee.[% EXP CCP HRS]) + (ee.[Secondary Role FTE] * re2.[% EXP CCP HRS])
+		--	else (ee.[Primary Role FTE]* ee.[% EXP CCP HRS]) end [Combined Expected %]
+		,case when ee.[Secondary Role FTE] is not null then ee.[FTE1+2Exp%]
+			else ee.[FTE1Exp%] end [Combined Expected %]
 		,ee.[Primary CCP Role]
 		,ee.[Primary Role FTE]
 		,ee.[% EXP CCP HRS] [Primary Expected Percent]
@@ -715,11 +726,14 @@ select
 	,e.first_name + ' ' +e.last_name [Employee Name]
 	,e.emp_status
 	,svcs.[Billable?] 
+	
 into
 	dbo._MDD_CCSOR_Productivity
 from
 	_MDD_CCSOR_FteEpisodes eps
 	inner join Employees e on e.emp_id= eps.EmpID
+	--left join EmployeeSupervisor es on es.emp_id= eps.empid and es.is_indirect = 0
+	--left join employees e2 on e2.emp_id= es.supervisor_emp_id  
 	left join _MDD_CCSOR_ProdDeliveredSvcs svcs on eps.EmpID = svcs.emp_id
 		and svcs.[Svc Month] = eps.monthnum  
 		and svcs.[Svc Year] = eps.YearNum
