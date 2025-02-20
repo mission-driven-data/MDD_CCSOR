@@ -690,7 +690,7 @@ select
 	,emptime.EmployeeTime
 	,datepart(year,cv.rev_timein) [Svc Year]
 	,datepart(month,cv.rev_timein) [Svc Month]
-	,'https://www.cbh3.crediblebh.com/planner/plan.asp?plan_id=' + trim(str(cv.clientvisit_id)) [Visit Link]
+	,'https://www.cbh3.crediblebh.com/visit/clientvisit_view.asp?clientvisit_id=' + trim(str(cv.clientvisit_id)) + '&provportal=0' [Visit Link]
 	,'https://www.cbh3.crediblebh.com/client/my_cw_clients.asp?client_id=' + trim(str(cv.client_id)) as ClientLink
 	,cv.emp_name
 	,case when cv.non_billable= 1 then 'NB'
