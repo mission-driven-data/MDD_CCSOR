@@ -684,7 +684,7 @@ select
 	,cv.clientvisit_id
 	,cv.client_id
 	,cv.emp_id
-	,case when cv.visittype like '%Group%' then (cv.duration/ 60 )* 15 else emptime.EmployeeTime end as [Employee Duration]
+	,case when cv.visittype like '%Group%' then (cv.duration/ 60 )* 24 else emptime.EmployeeTime end as [Employee Duration]
 	,cv.visittype
 	,cv.duration
 	,emptime.EmployeeTime
