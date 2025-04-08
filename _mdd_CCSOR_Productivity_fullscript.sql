@@ -1,15 +1,20 @@
+--USE [Janet]
+
+/****** Object:  StoredProcedure [dbo].[_CCSOR_Productivity]    Script Date: 3/5/2025 2:32:53 PM ******/
+--SET ANSI_NULLS ON
+--GO
+--SET QUOTED_IDENTIFIER ON
+--GO
 
 
 
 
---Alter PROCEDURE [dbo].[_CCSOR_Productivity]
+--ALTER PROCEDURE [dbo].[_CCSOR_Productivity]
 
 --AS
 --BEGIN
 	
 	SET NOCOUNT ON;
-
-
 
 
 ----------------------------------------------------------------
@@ -29,10 +34,23 @@ select
 into
 	_MDD_CCSOR_RoleEpisodes
 from RoleHoursExpected$ re 
-
+ 
 ------------------------------------------------------------------------
 
+IF OBJECT_ID (N'dbo._MDD_CCSOR_DirectSups') IS NOT NULL
+DROP TABLE dbo._MDD_CCSOR_DirectSups
 
+  select 
+	es.emp_id
+	,e.first_name + ' ' + e.last_name [Supervisor]
+	
+  into _MDD_CCSOR_DirectSups
+  from EmployeeSupervisor es
+  inner join employees e on  es.supervisor_emp_id= e.emp_id
+  where es.is_indirect= 0
+  and e.emp_id not in (select RecordID from _mdd_SmartExcludedRecords x where x.recordtype = 'Employee')
+  
+  ----------------------------------------------------------------
 IF OBJECT_ID (N'dbo._MDD_CCSOR_FteForEmps') IS NOT NULL
 DROP TABLE dbo._MDD_CCSOR_FteForEmps
 ;with FormRole as
@@ -60,6 +78,7 @@ select distinct
 	,secroleInj.[Secondary CCP Role (Injected)]
 	,secFTEInj.[Secondary CCP Role FTE (Injected)]
 	,e.emp_status
+	,e.email 
 	,e2.first_name + ' ' + e2.last_name  [Supervisor]
 	
 
@@ -269,6 +288,7 @@ Select
 			else null
 		end as [Additional NonCCP hours]
 ,e.emp_status
+,e.email
 ,fr.Supervisor
 
 
@@ -279,12 +299,11 @@ left join FormRole  fr on e.emp_id= fr.for_emp_id
 left join LookupDict ld1 on ld1.lookup_id= e.dd4
 left join LookupDict ld2 on ld2.lookup_id = e.dd3
 
---where emp_id = 4550
+where e.emp_id not in (select RecordID from _mdd_SmartExcludedRecords x where x.recordtype = 'Employee')
 order by emp_id
 
 , isnull(fr.[CCP Effective Date],e.date7)
 --------------------------------------------------------------------------------------------
-
 
 IF OBJECT_ID (N'dbo._MDD_CCSOR_FteEpisodes') IS NOT NULL
 DROP TABLE dbo._MDD_CCSOR_FteEpisodes
@@ -302,6 +321,7 @@ DROP TABLE dbo._MDD_CCSOR_FteEpisodes
       ,[Secondary Role FTE]
       ,[Additional NonCCP hours]
 	  ,emp_status
+	  ,email
 	  ,[rownum1]
 	 , ROW_NUMBER () over (partition by empid  order by [CCP Effective Date]  ) rownum 
 	 ,lead([CCP Effective Date])
@@ -319,6 +339,7 @@ from
       ,[Secondary Role FTE]
       ,[Additional NonCCP hours]
 ,emp_status
+,email
 	,row_number () over ( partition by empid, cast ([CCP Effective Date] as date)  order by [CCP Effective Date] desc) rownum1
 	from _MDD_CCSOR_FteForEmps
 )x where rownum1=1 --and EmpID = 4208
@@ -334,6 +355,7 @@ select distinct
 	,ee.[Secondary Role FTE]
 	,ee.[Additional NonCCP hours]
 	,ee.emp_status
+	,ee.email
 	,null rownum1
 	,null rownum
 	,ee.[CCP Effective Date] NextDate
@@ -381,7 +403,9 @@ from
 			else re2.[End Date] end as date)) as [Employee Episode End Date] --inclusive
 		,ee.EmpID
 		,ee.[Employee Name]
+		
 ,ee.emp_status
+,ee.email
 		--,case when ee.[Secondary Role FTE] is not null then (ee.[Primary Role FTE]* ee.[% EXP CCP HRS]) + (ee.[Secondary Role FTE] * re2.[% EXP CCP HRS])
 		--	else (ee.[Primary Role FTE]* ee.[% EXP CCP HRS]) end [Combined Expected %]
 		,case when ee.[Secondary Role FTE] is not null then ee.[FTE1+2Exp%]
@@ -468,6 +492,7 @@ from
 		,acs.[Secondary CCP Role]
 		,acs.[Secondary Role FTE]
 		,acs.[Additional NonCCP hours]
+		,acs.email
 	from
 		MoreMonthInfo mmi
 		left join AllCombinedSteps acs on 
@@ -496,10 +521,12 @@ select
 		else (2080 * (wm.PercentOfYear/100) * (sum(wm.[Combined Expected %] * wm.DaysToapply)/wm.DaysInMonth)) end[Adjusted Expected Hours for Month]
 	,wm.MonthNum
 	,wm.YearNum
+	,wm.email
 into
 	_MDD_CCSOR_FteEpisodes
 from 
 	WithMonths wm
+where wm.EmpID not in (select RecordID from _mdd_SmartExcludedRecords x where x.recordtype = 'Employee')
 group by
 wm.EmpID
 	,wm.[Month and Year]
@@ -515,6 +542,7 @@ wm.EmpID
 		,[Secondary Role FTE]
 	,wm.MonthNum
 	,wm.YearNum
+	,wm.email
 		--,wm.[Additional NonCCP hours]
 --select * from _MDD_CCSOR_FteEpisodes e where e.EmpID = 3908
 --select * from _MDD_CCSOR_FteEpisodes e where e.EmpID = 3908
@@ -562,6 +590,8 @@ where
 
 CREATE CLUSTERED Index IX_mdd_Janet_SmartClientVisitEmpTime_AllTimes ON _mdd_Janet_SmartClientVisitEmpTime_AllTimes (emp_id,TransitionTimeDate,TransitionTime)
 
+
+
 IF OBJECT_ID (N'dbo._mdd_Janet_SmartClientVisitEmpTime_AllServices') IS NOT NULL
 DROP TABLE dbo._mdd_Janet_SmartClientVisitEmpTime_AllServices
 
@@ -583,6 +613,8 @@ where
 	and cv.rev_timein >= '2024-01-01'
 
 CREATE CLUSTERED Index IX_mdd_Janet_SmartClientVisitEmpTime_AllServices ON _mdd_Janet_SmartClientVisitEmpTime_AllServices (emp_id,SvcDate,rev_timein,rev_timeout)
+
+
 
 IF OBJECT_ID (N'dbo._mdd_Janet_SmartClientVisitEmpTime_NextTransition') IS NOT NULL
 DROP TABLE dbo._mdd_Janet_SmartClientVisitEmpTime_NextTransition
@@ -638,7 +670,8 @@ having
 	count(clientvisit_id) > 0 and count(client_id) > 0
 	
 CREATE CLUSTERED Index IX_mdd_Janet_SmartClientVisitEmpTime_AllIntervals ON _mdd_Janet_SmartClientVisitEmpTime_AllIntervals (emp_id,TransitionTimeDate)
-	
+
+
 
 IF OBJECT_ID (N'dbo._mdd_Janet_SmartClientVisitEmpTime') IS NOT NULL
 DROP TABLE dbo._mdd_Janet_SmartClientVisitEmpTime
@@ -684,7 +717,8 @@ select
 	,cv.clientvisit_id
 	,cv.client_id
 	,cv.emp_id
-	,case when cv.visittype like '%Group%' then (cv.duration/ 60 )* 24 else emptime.EmployeeTime end as [Employee Duration]
+	,e.email
+	,case when cv.visittype like '%Group%' then  (CAST(cv.duration AS DECIMAL(10,2)) / 60) * 24  else emptime.EmployeeTime end as [Employee Duration]
 	,cv.visittype
 	,cv.duration
 	,emptime.EmployeeTime
@@ -700,12 +734,14 @@ into
 	dbo._MDD_CCSOR_ProdDeliveredSvcs
 from
 	clientvisit cv
+	left join employees e on e.emp_id= cv.emp_id
 	left join _mdd_Janet_SmartClientVisitEmpTime emptime on cv.clientvisit_id = emptime.clientvisit_id
 where 
 	cv.splitprimary_clientvisit_id is null
 	and cv.visittype not in ( 'No Show/Cancellation', 'CANCEL/NO SHOW')
 	and cv.rev_timein >= '2022-01-01'
-
+	and cv.emp_id not in (select RecordID from _mdd_SmartExcludedRecords x where x.recordtype = 'Employee')
+	and cv.client_id not in (select RecordID from _mdd_SmartExcludedRecords x where x.recordtype = 'Client')
 -------------------------------------------------------------------------------------
 
 
@@ -725,6 +761,7 @@ select
 	,((sum(svcs.[Employee Duration])/60) / (eps.[Adjusted Expected Hours for Month])) [Amount of prod to expectation]
 	,e.first_name + ' ' +e.last_name [Employee Name]
 	,e.emp_status
+	--,e.email
 	,svcs.[Billable?] 
 	
 into
@@ -757,7 +794,8 @@ group by
 	,e.first_name + ' ' +e.last_name
 	,svcs.[Billable?] 
 	,e.emp_status
+	,eps.email
 
-	--end
+--end
 
 	
