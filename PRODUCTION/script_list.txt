@@ -1,0 +1,13 @@
+.gitattributes
+_MDD_CCSOR_DirectSups.sql
+_MDD_CCSOR_FteEpisodes.sql
+_mdd_CCSOR_NoShowAsmts.sql
+_mdd_CCSOR_Payments.sql
+_mdd_CCSOR_Productivity.sql
+_mdd_CCSOR_Productivity_fullscript.sql
+_mdd_ExcludedRecords.sql
+_mdd_SmartAging.sql
+_mdd_SmartAgingClient.sql
+_mdd_SmartDate.sql
+_mdd_SmartDatePlus.sql
+README.md
